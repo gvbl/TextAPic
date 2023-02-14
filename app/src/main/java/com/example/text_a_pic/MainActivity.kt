@@ -77,19 +77,25 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun ContactsList(viewModel: MainViewModel) {
         val contacts by viewModel.contacts.observeAsState(emptyList())
+        val selectedContact by viewModel.selectedContact.observeAsState(null)
         var expanded by rememberSaveable { mutableStateOf(false) }
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = it },
         ) {
-            Text(text = "Choose selected contact")
+            selectedContact?.let {
+                Column {
+                    Text(text = it.name)
+                    Text(text = it.phoneNumber)
+                }
+            } ?: Text(text = "Select a contact")
             ExposedDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
                 contacts.forEach { contact ->
                     DropdownMenuItem(onClick = {
-                        viewModel.deleteContact(contact)
+                        viewModel.selectContact(contact)
                         expanded = false
                     }) {
                         Column {
