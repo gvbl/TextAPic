@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterialApi::class)
+
 package com.example.text_a_pic
 
 import android.Manifest.permission.READ_CONTACTS
@@ -6,16 +8,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
@@ -76,14 +76,26 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun ContactsList(viewModel: MainViewModel) {
-        val contacts = viewModel.contacts.observeAsState(emptyList())
-        Column {
-            for (contact in contacts.value) {
-                Column {
-                    Text(text = contact.name)
-                    Text(text = contact.phoneNumber)
-                    Button(onClick = { viewModel.deleteContact(contact) }) {
-                        Text(text = "-")
+        val contacts by viewModel.contacts.observeAsState(emptyList())
+        var expanded by rememberSaveable { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+        ) {
+            Text(text = "Choose selected contact")
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                contacts.forEach { contact ->
+                    DropdownMenuItem(onClick = {
+                        viewModel.deleteContact(contact)
+                        expanded = false
+                    }) {
+                        Column {
+                            Text(text = contact.name)
+                            Text(text = contact.phoneNumber)
+                        }
                     }
                 }
             }
