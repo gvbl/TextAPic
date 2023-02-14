@@ -2,10 +2,6 @@ package com.example.text_a_pic
 
 import android.app.Application
 import android.net.Uri
-import android.provider.ContactsContract
-import androidx.core.content.ContentResolverCompat
-import androidx.core.database.getIntOrNull
-import androidx.core.database.getStringOrNull
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.distinctUntilChanged
 import androidx.lifecycle.map
@@ -25,8 +21,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resolveContact(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             val contact = repository.resolveContact(uri)
+            repository.upsert(contact)
             repository.setRecipientId(contact.id)
-            repository.insert(contact)
         }
     }
 
