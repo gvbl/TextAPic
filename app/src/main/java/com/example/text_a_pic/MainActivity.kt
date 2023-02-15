@@ -3,14 +3,21 @@
 package com.example.text_a_pic
 
 import android.Manifest.permission.*
-import android.content.Context
+import android.content.ContentValues
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.telephony.SmsManager
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -27,47 +34,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import com.example.text_a_pic.ui.theme.TextAPicTheme
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var cameraExecutor: ExecutorService
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
-    private val readContactsPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                contactPickerLauncher.launch(null)
-            } else {
-                // TODO: show snackbar telling user this permission is required
-            }
+    private val permissions = mutableListOf (
+        READ_CONTACTS,
+        CAMERA,
+    ).apply {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            add(WRITE_EXTERNAL_STORAGE)
         }
+    }.toTypedArray()
 
-    private val cameraPermissionLauncher =
+    private val permissionsLauncher =
         registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                // TODO: ?
-            } else {
-                // TODO: show snackbar telling user this permission is required
-            }
-        }
-
-    private val smsPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                // TODO: ?
-            } else {
-                // TODO: show snackbar telling user this permission is required
-            }
-        }
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { }
 
     private val contactPickerLauncher =
         registerForActivityResult(ActivityResultContracts.PickContact()) {
@@ -77,11 +68,20 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    private var imageCapture: ImageCapture? = null
+
+    private lateinit var cameraExecutor: ExecutorService
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val viewModel: MainViewModel by viewModels()
+
+        val permissionsGranted = permissions.all { ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED }
+        if (!permissionsGranted) {
+            permissionsLauncher.launch(permissions)
+        }
 
         setContent {
+            val viewModel: MainViewModel by viewModels()
             MainApp(viewModel)
         }
 
@@ -92,7 +92,6 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         cameraExecutor.shutdown()
     }
-
 
     @Composable
     fun MainApp(viewModel: MainViewModel) {
@@ -107,7 +106,7 @@ class MainActivity : ComponentActivity() {
                         MainAppBar(viewModel, it)
                         Camera()
                     }
-                    SnapButton()
+                    Capture()
                 } ?: AddContact()
             }
         }
@@ -146,12 +145,7 @@ class MainActivity : ComponentActivity() {
         ) {
             ExtendedFloatingActionButton(
                 onClick = {
-                    when (ContextCompat.checkSelfPermission(this@MainActivity, READ_CONTACTS)) {
-                        PERMISSION_GRANTED -> {
-                            contactPickerLauncher.launch(null)
-                        }
-                        else -> readContactsPermissionLauncher.launch(READ_CONTACTS)
-                    }
+                    contactPickerLauncher.launch(null)
                 },
                 text = { Text(text = getString(R.string.add_contact)) },
                 icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) }
@@ -206,62 +200,91 @@ class MainActivity : ComponentActivity() {
         val lifecycleOwner = LocalLifecycleOwner.current
         val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(this) }
 
-        when (ContextCompat.checkSelfPermission(this@MainActivity, CAMERA)) {
-            PERMISSION_GRANTED -> {
-                AndroidView(factory = { context ->
-                    val previewView = PreviewView(context)
-                    val executor = ContextCompat.getMainExecutor(context)
-                    cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
-                        val preview = Preview.Builder().build().also {
-                            it.setSurfaceProvider(previewView.surfaceProvider)
-                        }
-
-                        val cameraSelector = CameraSelector.Builder()
-                            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-                            .build()
-
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            cameraSelector,
-                            preview
-                        )
-                    }, executor)
-                    previewView
-                }, modifier = Modifier.fillMaxSize())
-            }
-            else -> Button(onClick = {
-                cameraPermissionLauncher.launch(CAMERA)
-            }) {
-                Text(text = getString(R.string.enable_camera))
-            }
-        }
+        AndroidView(factory = { context ->
+            val previewView = PreviewView(context)
+            val executor = ContextCompat.getMainExecutor(context)
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+                val cameraSelector = CameraSelector.Builder()
+                    .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                    .build()
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+            }, executor)
+            previewView
+        }, modifier = Modifier.fillMaxSize())
+        imageCapture = ImageCapture.Builder().build()
     }
 
     @Composable
-    fun SnapButton() {
+    fun Capture() {
         Box(modifier = Modifier.fillMaxSize().padding(bottom = 16.dp)) {
             FloatingActionButton(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onClick = {
-                    when (ContextCompat.checkSelfPermission(this@MainActivity, SEND_SMS)) {
-                        PERMISSION_GRANTED -> {
-                            getSystemService(SmsManager::class.java)?.sendTextMessage(
-                                "470-435-5646",
-                                null,
-                                "Hello World!",
-                                null,
-                                null)
-                        }
-                        else -> {
-                            smsPermissionLauncher.launch(SEND_SMS)
-                        }
-                    }
+                    takePhoto()
+//                    getSystemService(SmsManager::class.java)?.sendMultimediaMessage(
+//                        this@MainActivity,
+//                        null,
+//                        null,
+//                        null,
+//                        null)
                 },
             ) {
                 Icon(imageVector = Icons.Default.Camera, contentDescription = null)
             }
         }
     }
+
+    // https://developer.android.com/codelabs/camerax-getting-started#4
+    private fun takePhoto() {
+        // Get a stable reference of the modifiable image capture use case
+        val imageCapture = imageCapture ?: return
+
+        // Create time stamped name and MediaStore entry.
+        val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
+            .format(System.currentTimeMillis())
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
+            }
+        }
+
+        // Create output options object which contains file + metadata
+        val outputOptions = ImageCapture.OutputFileOptions
+            .Builder(contentResolver,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues)
+            .build()
+
+        // Set up image capture listener, which is triggered after photo has
+        // been taken
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+                }
+
+                override fun
+                        onImageSaved(output: ImageCapture.OutputFileResults){
+                    val msg = "Photo capture succeeded: ${output.savedUri}"
+                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, msg)
+                }
+            }
+        )
+    }
+
 }
