@@ -2,9 +2,10 @@
 
 package com.example.text_a_pic
 
-import android.Manifest.permission.CAMERA
-import android.Manifest.permission.READ_CONTACTS
+import android.Manifest.permission.*
+import android.content.Context
 import android.os.Bundle
+import android.telephony.SmsManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,14 +14,10 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
@@ -51,6 +48,17 @@ class MainActivity : ComponentActivity() {
         }
 
     private val cameraPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted: Boolean ->
+            if (isGranted) {
+                // TODO: ?
+            } else {
+                // TODO: show snackbar telling user this permission is required
+            }
+        }
+
+    private val smsPermissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) { isGranted: Boolean ->
@@ -95,11 +103,11 @@ class MainActivity : ComponentActivity() {
                 color = MaterialTheme.colors.background
             ) {
                 selected?.let {
-                    Column() {
+                    Column {
                         MainAppBar(viewModel, it)
                         Camera()
-
                     }
+                    SnapButton()
                 } ?: AddContact()
             }
         }
@@ -227,6 +235,32 @@ class MainActivity : ComponentActivity() {
                 cameraPermissionLauncher.launch(CAMERA)
             }) {
                 Text(text = getString(R.string.enable_camera))
+            }
+        }
+    }
+
+    @Composable
+    fun SnapButton() {
+        Box(modifier = Modifier.fillMaxSize().padding(bottom = 16.dp)) {
+            FloatingActionButton(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                onClick = {
+                    when (ContextCompat.checkSelfPermission(this@MainActivity, SEND_SMS)) {
+                        PERMISSION_GRANTED -> {
+                            getSystemService(SmsManager::class.java)?.sendTextMessage(
+                                "470-435-5646",
+                                null,
+                                "Hello World!",
+                                null,
+                                null)
+                        }
+                        else -> {
+                            smsPermissionLauncher.launch(SEND_SMS)
+                        }
+                    }
+                },
+            ) {
+                Icon(imageVector = Icons.Default.Camera, contentDescription = null)
             }
         }
     }

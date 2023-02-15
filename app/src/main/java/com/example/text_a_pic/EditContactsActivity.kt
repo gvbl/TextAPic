@@ -21,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 
-
 class EditContactsActivity : ComponentActivity() {
 
     companion object {
