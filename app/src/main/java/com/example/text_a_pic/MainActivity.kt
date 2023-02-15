@@ -2,12 +2,19 @@
 
 package com.example.text_a_pic
 
+import android.Manifest.permission.CAMERA
 import android.Manifest.permission.READ_CONTACTS
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -17,12 +24,21 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import com.example.text_a_pic.ui.theme.TextAPicTheme
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
+
+    private val TAG = "MainActivityTag"
+
+    private lateinit var cameraExecutor: ExecutorService
 
     private val readContactsPermissionLauncher =
         registerForActivityResult(
@@ -30,6 +46,17 @@ class MainActivity : ComponentActivity() {
         ) { isGranted: Boolean ->
             if (isGranted) {
                 contactPickerLauncher.launch(null)
+            } else {
+                // TODO: show snackbar telling user this permission is required
+            }
+        }
+
+    private val cameraPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted: Boolean ->
+            if (isGranted) {
+                // TODO: ?
             } else {
                 // TODO: show snackbar telling user this permission is required
             }
@@ -50,7 +77,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             MainApp(viewModel)
         }
+
+        cameraExecutor = Executors.newSingleThreadExecutor()
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
+    }
+
 
     @Composable
     fun MainApp(viewModel: MainViewModel) {
@@ -64,6 +99,8 @@ class MainActivity : ComponentActivity() {
                     Column() {
                         MainAppBar()
                         ContactsDropdown(viewModel, it)
+                        Camera()
+
                     }
                 } ?: AddContact()
             }
@@ -150,6 +187,44 @@ class MainActivity : ComponentActivity() {
                         Text(text = getString(R.string.add_new_contact))
                     }
                 }
+            }
+        }
+    }
+
+    @Composable
+    fun Camera() {
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(this) }
+
+        when (ContextCompat.checkSelfPermission(this@MainActivity, CAMERA)) {
+            PERMISSION_GRANTED -> {
+                AndroidView(factory = { context ->
+                    val previewView = PreviewView(context)
+                    val executor = ContextCompat.getMainExecutor(context)
+                    cameraProviderFuture.addListener({
+                        val cameraProvider = cameraProviderFuture.get()
+                        val preview = Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
+
+                        val cameraSelector = CameraSelector.Builder()
+                            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                            .build()
+
+                        cameraProvider.unbindAll()
+                        cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            cameraSelector,
+                            preview
+                        )
+                    }, executor)
+                    previewView
+                }, modifier = Modifier.fillMaxSize())
+            }
+            else -> Button(onClick = {
+                cameraPermissionLauncher.launch(CAMERA)
+            }) {
+                Text(text = getString(R.string.enable_camera))
             }
         }
     }
