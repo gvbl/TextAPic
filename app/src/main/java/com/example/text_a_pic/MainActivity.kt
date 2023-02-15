@@ -5,27 +5,28 @@ package com.example.text_a_pic
 import android.Manifest.permission.CAMERA
 import android.Manifest.permission.READ_CONTACTS
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -35,8 +36,6 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
-
-    private val TAG = "MainActivityTag"
 
     private lateinit var cameraExecutor: ExecutorService
 
@@ -97,8 +96,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 selected?.let {
                     Column() {
-                        MainAppBar()
-                        ContactsDropdown(viewModel, it)
+                        MainAppBar(viewModel, it)
                         Camera()
 
                     }
@@ -108,10 +106,12 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun MainAppBar() {
+    fun MainAppBar(viewModel: MainViewModel, selected: Contact) {
         var showMenu by remember { mutableStateOf(false) }
         TopAppBar(
-            title = { Text(text = getString(R.string.app_name)) },
+            title = {
+                ContactsDropdown(viewModel, selected)
+            },
             actions = {
                 IconButton(onClick = { showMenu = !showMenu }) {
                     Icon(imageVector = Icons.Default.MoreVert, contentDescription = null)
@@ -159,11 +159,16 @@ class MainActivity : ComponentActivity() {
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },
         ) {
-            Column(modifier = Modifier.width(200.dp)) {
-                Text(text = selected.name)
-                Text(text = selected.phoneNumber)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ContactItem(contact = selected)
+                Icon(
+                    modifier = Modifier.padding(start = 8.dp),
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null
+                )
             }
             ExposedDropdownMenu(
+                modifier = Modifier.width(200.dp),
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
@@ -172,19 +177,16 @@ class MainActivity : ComponentActivity() {
                         viewModel.selectContact(contact)
                         expanded = false
                     }) {
-                        Column() {
-                            Text(text = contact.name)
-                            Text(text = contact.phoneNumber)
-                        }
+                        ContactItem(contact = contact)
                     }
                 }
                 DropdownMenuItem(onClick = {
                     contactPickerLauncher.launch(null)
                     expanded = false
                 }) {
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                        Text(text = getString(R.string.add_new_contact))
+                        Text(modifier = Modifier.padding(start = 8.dp), text = getString(R.string.add_new_contact), fontWeight = FontWeight.Bold)
                     }
                 }
             }

@@ -44,29 +44,29 @@ class EditContactsActivity : ComponentActivity() {
         val checked = remember { mutableStateListOf<Int>() }
         TextAPicTheme {
             Surface(
-                modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colors.background
             ) {
                 Column {
                     EditAppBar()
-                    contacts.forEach { contact ->
-                        Row {
-                            Checkbox(checked = checked.contains(contact.id), onCheckedChange = {
-                                if (it) {
-                                    checked.add(contact.id)
-                                } else {
-                                    checked.remove(contact.id)
-                                }
-                            })
-                            Column {
-                                Text(text = contact.name)
-                                Text(text = contact.phoneNumber)
+                    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        contacts.forEach { contact ->
+                            Row {
+                                Checkbox(checked = checked.contains(contact.id), onCheckedChange = {
+                                    if (it) {
+                                        checked.add(contact.id)
+                                    } else {
+                                        checked.remove(contact.id)
+                                    }
+                                })
+                                ContactItem(contact = contact)
                             }
                         }
                     }
                 }
                 if (checked.isNotEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize().padding(bottom = 16.dp)) {
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 16.dp)) {
                         ExtendedFloatingActionButton(
                             modifier = Modifier.align(Alignment.BottomCenter),
                             onClick = {
