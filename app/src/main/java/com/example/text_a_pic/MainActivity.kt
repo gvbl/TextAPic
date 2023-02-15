@@ -12,14 +12,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import com.example.text_a_pic.ui.theme.TextAPicTheme
@@ -56,17 +54,17 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun MainApp(viewModel: MainViewModel) {
-        val selectedContact by viewModel.selectedContact.observeAsState(null)
+        val selected by viewModel.selectedContact.observeAsState(null)
         TextAPicTheme {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colors.background
             ) {
-                if (selectedContact == null) {
-                    AddContact()
-                } else {
-                    ContactsList(viewModel)
-                }
+                selected?.let {
+                    Column() {
+                        ContactsDropdown(viewModel, it)
+                    }
+                } ?: AddContact()
             }
         }
     }
@@ -86,20 +84,24 @@ class MainActivity : ComponentActivity() {
                         else -> readContactsPermissionLauncher.launch(READ_CONTACTS)
                     }
                 },
-                text = { Text(text = "ADD CONTACT") },
+                text = { Text(text = getString(R.string.add_contact)) },
                 icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) }
             )
         }
     }
 
     @Composable
-    fun ContactsList(viewModel: MainViewModel) {
+    fun ContactsDropdown(viewModel: MainViewModel, selected: Contact) {
         val contacts by viewModel.contacts.observeAsState(emptyList())
         var expanded by rememberSaveable { mutableStateOf(false) }
         ExposedDropdownMenuBox(
             expanded = expanded,
-            onExpandedChange = { expanded = it },
+            onExpandedChange = { expanded = !expanded },
         ) {
+            Column(modifier = Modifier.width(200.dp)) {
+                Text(text = selected.name)
+                Text(text = selected.phoneNumber)
+            }
             ExposedDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
@@ -109,7 +111,7 @@ class MainActivity : ComponentActivity() {
                         viewModel.selectContact(contact)
                         expanded = false
                     }) {
-                        Column {
+                        Column() {
                             Text(text = contact.name)
                             Text(text = contact.phoneNumber)
                         }
@@ -121,7 +123,7 @@ class MainActivity : ComponentActivity() {
                 }) {
                     Row {
                         Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                        Text(text = "Add new contact")
+                        Text(text = getString(R.string.add_new_contact))
                     }
                 }
             }

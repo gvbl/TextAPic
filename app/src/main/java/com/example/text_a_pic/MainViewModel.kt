@@ -2,11 +2,11 @@ package com.example.text_a_pic
 
 import android.app.Application
 import android.net.Uri
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.distinctUntilChanged
-import androidx.lifecycle.map
-import androidx.lifecycle.viewModelScope
+import android.util.Log
+import androidx.lifecycle.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -14,9 +14,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ContactRepository(application)
 
     val contacts = repository.selectAll()
-    val selectedContact = repository.recipientId.distinctUntilChanged().map { id ->
-        contacts.value?.firstOrNull { it.id == id }
-    }
+    val selectedContact = repository.recipientId.map { id ->
+        id?.let { repository.findById(it) }
+    }.flowOn(Dispatchers.IO).asLiveData()
 
     fun resolveContact(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {

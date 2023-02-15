@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Text-A-Pic</string>
+    <string name="add_contact">ADD CONTACT</string>
+    <string name="add_new_contact">Add new contact</string>
 </resources>

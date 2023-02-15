@@ -21,7 +21,7 @@ class ContactRepository(application: Application) {
     private val contactDao: ContactDao
     private val context = application.applicationContext
     private val Context.dataStore by preferencesDataStore("text-a-pic-preferences")
-    val RECIPIENT_ID = intPreferencesKey("recipient-id")
+    private val RECIPIENT_ID = intPreferencesKey("recipient-id")
 
     init {
         val db = Room.databaseBuilder(
@@ -76,7 +76,6 @@ class ContactRepository(application: Application) {
     }
 
     val recipientId = context.dataStore.data.map { preferences -> preferences[RECIPIENT_ID] }
-        .distinctUntilChanged().asLiveData()
 
     suspend fun setRecipientId(id: Int) {
         context.dataStore.edit { preferences ->
@@ -85,6 +84,8 @@ class ContactRepository(application: Application) {
     }
 
     fun selectAll() = contactDao.selectAll()
+
+    fun findById(id: Int) = contactDao.findById(id)
 
     fun upsert(contact: Contact) = contactDao.upsert(contact)
 
