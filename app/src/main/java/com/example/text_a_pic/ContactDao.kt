@@ -15,5 +15,5 @@ interface ContactDao {
     fun upsert(contact: Contact)
 
     @Delete
-    fun delete(user: Contact)
+    fun delete(contacts: List<Contact>)
 }

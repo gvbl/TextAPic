@@ -2,7 +2,6 @@ package com.example.text_a_pic
 
 import android.app.Application
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
@@ -29,12 +28,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun selectContact(contact: Contact) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.setRecipientId(contact.id)
-        }
-    }
-
-    fun deleteContact(contact: Contact) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.delete(contact)
         }
     }
 }

@@ -89,5 +89,5 @@ class ContactRepository(application: Application) {
 
     fun upsert(contact: Contact) = contactDao.upsert(contact)
 
-    fun delete(contact: Contact) = contactDao.delete(contact)
+    fun delete(contacts: List<Contact>) = contactDao.delete(contacts)
 }

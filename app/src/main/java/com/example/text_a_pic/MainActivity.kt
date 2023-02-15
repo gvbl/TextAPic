@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -62,11 +62,35 @@ class MainActivity : ComponentActivity() {
             ) {
                 selected?.let {
                     Column() {
+                        MainAppBar()
                         ContactsDropdown(viewModel, it)
                     }
                 } ?: AddContact()
             }
         }
+    }
+
+    @Composable
+    fun MainAppBar() {
+        var showMenu by remember { mutableStateOf(false) }
+        TopAppBar(
+            title = { Text(text = getString(R.string.app_name)) },
+            actions = {
+                IconButton(onClick = { showMenu = !showMenu }) {
+                    Icon(imageVector = Icons.Default.MoreVert, contentDescription = null)
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(onClick = {
+                        startActivity(EditContactsActivity.newIntent(this@MainActivity))
+                        showMenu = false
+                    }) {
+                        Text(text = getString(R.string.edit_contacts))
+                    }
+                }
+            }
+        )
     }
 
     @Composable
@@ -93,7 +117,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun ContactsDropdown(viewModel: MainViewModel, selected: Contact) {
         val contacts by viewModel.contacts.observeAsState(emptyList())
-        var expanded by rememberSaveable { mutableStateOf(false) }
+        var expanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },
