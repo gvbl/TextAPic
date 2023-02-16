@@ -4,11 +4,14 @@ package com.example.text_a_pic
 
 import android.Manifest.permission.*
 import android.content.ContentValues
+import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.Log
+import android.telephony.PhoneNumberUtils
+import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,19 +37,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
+import com.bumptech.glide.Glide
 import com.example.text_a_pic.ui.theme.TextAPicTheme
+import com.google.android.mms.ContentType
+import com.google.android.mms.MMSPart
+import com.google.android.mms.pdu_alt.PduPersister.DUMMY_THREAD_ID
+import com.klinker.android.send_message.Transaction
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+// Todo: Account for "allow once" permissions, kicking back to permissions screen if any not granted
 class MainActivity : ComponentActivity() {
 
     companion object {
-        private const val TAG = "MainActivity"
         private val permissions = mutableListOf(
             READ_CONTACTS,
             CAMERA,
+            SEND_SMS,
         ).apply {
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
                 add(WRITE_EXTERNAL_STORAGE)
@@ -147,6 +156,13 @@ class MainActivity : ComponentActivity() {
                         text = getString(R.string.write_files)
                     )
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Sms, contentDescription = null)
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
+                        text = getString(R.string.send_sms)
+                    )
+                }
             }
             Button(onClick = {
                 permissionsLauncher.launch(permissions)
@@ -158,23 +174,23 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun Main(viewModel: MainViewModel) {
-        val selected by viewModel.selectedContact.observeAsState(null)
-        selected?.let {
+        val contact by viewModel.selectedContact.observeAsState(null)
+        contact?.let {
             Column {
                 MainAppBar(viewModel, it)
                 Camera()
             }
-            Capture()
+            Capture(it)
         } ?: AddContact()
     }
 
     @Composable
-    fun MainAppBar(viewModel: MainViewModel, selected: Contact) {
+    fun MainAppBar(viewModel: MainViewModel, contact: Contact) {
         var showMenu by remember { mutableStateOf(false) }
         TopAppBar(
             modifier = Modifier.height(72.dp),
             title = {
-                ContactsDropdown(viewModel = viewModel, selected = selected)
+                ContactsDropdown(viewModel = viewModel, selected = contact)
             },
             actions = {
                 IconButton(onClick = { showMenu = !showMenu }) {
@@ -289,7 +305,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun Capture() {
+    fun Capture(contact: Contact) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -298,13 +314,19 @@ class MainActivity : ComponentActivity() {
             FloatingActionButton(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onClick = {
-                    takePhoto()
-//                    getSystemService(SmsManager::class.java)?.sendMultimediaMessage(
-//                        this@MainActivity,
-//                        null,
-//                        null,
-//                        null,
-//                        null)
+                    takePhoto(onSuccess = {
+                        val smsManager = getSystemService(SmsManager::class.java)
+                        val maxWidth = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_WIDTH)
+                        val maxHeight = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_HEIGHT)
+                        val bytes = getScaledImage(this@MainActivity, it, maxWidth, maxHeight)
+                        val parts = listOf(MMSPart("image", ContentType.IMAGE_JPEG, bytes))
+                        val transaction = Transaction(this@MainActivity)
+                        val addresses = listOf(PhoneNumberUtils.stripSeparators(contact.phoneNumber))
+                        transaction.sendNewMessage(smsManager.subscriptionId, DUMMY_THREAD_ID, addresses, parts, null, null)
+                        Toast.makeText(this@MainActivity, "Photo send to ${contact.phoneNumber}", Toast.LENGTH_SHORT).show()
+                    }, onError = {
+                        Toast.makeText(this@MainActivity, "Error: ${it.message}", Toast.LENGTH_SHORT).show()
+                    })
                 },
             ) {
                 Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
@@ -313,9 +335,9 @@ class MainActivity : ComponentActivity() {
     }
 
     // https://developer.android.com/codelabs/camerax-getting-started#4
-    private fun takePhoto() {
+    private fun takePhoto(onSuccess: ((Uri) -> Unit)? = null, onError: ((Exception) -> Unit)? = null) {
         // Get a stable reference of the modifiable image capture use case
-        val imageCapture = imageCapture ?: return
+        val imageCapture = imageCapture!!
 
         // Create time stamped name and MediaStore entry.
         val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
@@ -344,16 +366,26 @@ class MainActivity : ComponentActivity() {
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
-                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+                    onError?.invoke(exc)
                 }
 
-                override fun
-                        onImageSaved(output: ImageCapture.OutputFileResults) {
-                    val msg = "Photo capture succeeded: ${output.savedUri}"
-                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, msg)
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    output.savedUri?.let {
+                        onSuccess?.invoke(it)
+                    } ?: onError?.invoke(Exception("Null photo uri"))
+
                 }
             }
         )
     }
+
+    private fun getScaledImage(context: Context, uri: Uri, maxWidth: Int, maxHeight: Int, quality: Int = 90): ByteArray =
+        Glide
+            .with(context)
+            .`as`(ByteArray::class.java)
+            .load(uri)
+            .centerInside()
+            .encodeQuality(quality)
+            .submit(maxWidth, maxHeight)
+            .get()
 }

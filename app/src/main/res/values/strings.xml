@@ -10,4 +10,5 @@
     <string name="camera">Camera</string>
     <string name="write_files">Write files</string>
     <string name="grant_permissions">Grant permissions</string>
+    <string name="send_sms">Send SMS</string>
 </resources>

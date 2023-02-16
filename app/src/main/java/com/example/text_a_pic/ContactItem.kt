@@ -18,5 +18,5 @@ fun ContactItem(modifier: Modifier = Modifier, contact: Contact) {
 @Preview(showBackground = true)
 @Composable
 fun ContactItemPreview() {
-    ContactItem(contact = Contact(0, "John", "1 (555) 555-5555"))
+    ContactItem(contact = Contact(0, "Alice", "1 (555) 555-5555"))
 }

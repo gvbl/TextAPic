@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Text-A-Pic"
-include ':app'
+include ':app', ':android-smsmms'
