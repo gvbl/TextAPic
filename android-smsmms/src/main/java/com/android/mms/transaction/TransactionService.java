@@ -486,7 +486,7 @@ public class TransactionService extends Service implements Observer {
         // Create a new wake lock if we haven't made one yet.
         if (mWakeLock == null) {
             PowerManager pm = (PowerManager)getSystemService(Context.POWER_SERVICE);
-            mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MMS Connectivity");
+            mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "android-smsmms:MMS-Connectivity");
             mWakeLock.setReferenceCounted(false);
         }
     }
