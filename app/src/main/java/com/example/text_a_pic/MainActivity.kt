@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.telephony.SmsManager
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -34,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.MutableLiveData
 import com.example.text_a_pic.ui.theme.TextAPicTheme
 import java.text.SimpleDateFormat
 import java.util.*
@@ -44,21 +44,24 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        private val permissions = mutableListOf(
+            READ_CONTACTS,
+            CAMERA,
+        ).apply {
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                add(WRITE_EXTERNAL_STORAGE)
+            }
+        }.toTypedArray()
     }
 
-    private val permissions = mutableListOf (
-        READ_CONTACTS,
-        CAMERA,
-    ).apply {
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            add(WRITE_EXTERNAL_STORAGE)
-        }
-    }.toTypedArray()
+    private val allPermissionsGrantedLiveData = MutableLiveData(false)
 
     private val permissionsLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
-        ) { }
+        ) { permissions ->
+            allPermissionsGrantedLiveData.value = permissions.all { it.value }
+        }
 
     private val contactPickerLauncher =
         registerForActivityResult(ActivityResultContracts.PickContact()) {
@@ -75,14 +78,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val permissionsGranted = permissions.all { ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED }
-        if (!permissionsGranted) {
-            permissionsLauncher.launch(permissions)
+        allPermissionsGrantedLiveData.value = permissions.all {
+            ContextCompat.checkSelfPermission(
+                baseContext,
+                it
+            ) == PackageManager.PERMISSION_GRANTED
         }
 
         setContent {
             val viewModel: MainViewModel by viewModels()
-            MainApp(viewModel)
+            App(viewModel)
         }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -94,30 +99,82 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun MainApp(viewModel: MainViewModel) {
-        val selected by viewModel.selectedContact.observeAsState(null)
+    fun App(viewModel: MainViewModel) {
+        val allPermissionsGranted by allPermissionsGrantedLiveData.observeAsState(false)
         TextAPicTheme {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colors.background
             ) {
-                selected?.let {
-                    Column {
-                        MainAppBar(viewModel, it)
-                        Camera()
-                    }
-                    Capture()
-                } ?: AddContact()
+                if (allPermissionsGranted) {
+                    Main(viewModel)
+                } else {
+                    PermissionsIntro()
+                }
             }
         }
+    }
+
+    @Composable
+    fun PermissionsIntro() {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(text = getString(R.string.permissions_header))
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Person, contentDescription = null)
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
+                        text = getString(R.string.read_contacts)
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
+                        text = getString(R.string.camera)
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Folder, contentDescription = null)
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
+                        text = getString(R.string.write_files)
+                    )
+                }
+            }
+            Button(onClick = {
+                permissionsLauncher.launch(permissions)
+            }) {
+                Text(text = getString(R.string.grant_permissions))
+            }
+        }
+    }
+
+    @Composable
+    fun Main(viewModel: MainViewModel) {
+        val selected by viewModel.selectedContact.observeAsState(null)
+        selected?.let {
+            Column {
+                MainAppBar(viewModel, it)
+                Camera()
+            }
+            Capture()
+        } ?: AddContact()
     }
 
     @Composable
     fun MainAppBar(viewModel: MainViewModel, selected: Contact) {
         var showMenu by remember { mutableStateOf(false) }
         TopAppBar(
+            modifier = Modifier.height(72.dp),
             title = {
-                ContactsDropdown(viewModel, selected)
+                ContactsDropdown(viewModel = viewModel, selected = selected)
             },
             actions = {
                 IconButton(onClick = { showMenu = !showMenu }) {
@@ -170,25 +227,32 @@ class MainActivity : ComponentActivity() {
                 )
             }
             ExposedDropdownMenu(
-                modifier = Modifier.width(200.dp),
+                modifier = Modifier.width(240.dp),
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
                 contacts.forEach { contact ->
-                    DropdownMenuItem(onClick = {
-                        viewModel.selectContact(contact)
-                        expanded = false
-                    }) {
-                        ContactItem(contact = contact)
+                    DropdownMenuItem(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        onClick = {
+                            viewModel.selectContact(contact)
+                            expanded = false
+                        }
+                    ) {
+                        ContactItem(modifier = Modifier.padding(vertical = 8.dp), contact = contact)
                     }
                 }
-                DropdownMenuItem(onClick = {
+                DropdownMenuItem(modifier = Modifier.padding(vertical = 16.dp), onClick = {
                     contactPickerLauncher.launch(null)
                     expanded = false
                 }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                        Text(modifier = Modifier.padding(start = 8.dp), text = getString(R.string.add_new_contact), fontWeight = FontWeight.Bold)
+                        Text(
+                            modifier = Modifier.padding(start = 8.dp),
+                            text = getString(R.string.add_new_contact),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -226,7 +290,11 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun Capture() {
-        Box(modifier = Modifier.fillMaxSize().padding(bottom = 16.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 16.dp)
+        ) {
             FloatingActionButton(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onClick = {
@@ -239,7 +307,7 @@ class MainActivity : ComponentActivity() {
 //                        null)
                 },
             ) {
-                Icon(imageVector = Icons.Default.Camera, contentDescription = null)
+                Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
             }
         }
     }
@@ -255,16 +323,18 @@ class MainActivity : ComponentActivity() {
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
             }
         }
 
         // Create output options object which contains file + metadata
         val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(contentResolver,
+            .Builder(
+                contentResolver,
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                contentValues)
+                contentValues
+            )
             .build()
 
         // Set up image capture listener, which is triggered after photo has
@@ -278,7 +348,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 override fun
-                        onImageSaved(output: ImageCapture.OutputFileResults){
+                        onImageSaved(output: ImageCapture.OutputFileResults) {
                     val msg = "Photo capture succeeded: ${output.savedUri}"
                     Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
                     Log.d(TAG, msg)
@@ -286,5 +356,4 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
-
 }
