@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
         }.toTypedArray()
     }
 
-    private val allPermissionsGrantedLiveData = MutableLiveData(false)
+    private val allPermissionsGrantedLiveData = MutableLiveData<Boolean>()
 
     private val permissionsLauncher =
         registerForActivityResult(
@@ -105,13 +105,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        allPermissionsGrantedLiveData.value = permissions.all {
-            ContextCompat.checkSelfPermission(
-                baseContext,
-                it
-            ) == PackageManager.PERMISSION_GRANTED
-        }
-
         setContent {
             val viewModel: MainViewModel by viewModels()
             App(viewModel)
@@ -135,7 +128,12 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun App(viewModel: MainViewModel) {
-        val allPermissionsGranted by allPermissionsGrantedLiveData.observeAsState(false)
+        val allPermissionsGranted by allPermissionsGrantedLiveData.observeAsState(permissions.all {
+            ContextCompat.checkSelfPermission(
+                baseContext,
+                it
+            ) == PackageManager.PERMISSION_GRANTED
+        })
         TextAPicTheme {
             Surface(
                 modifier = Modifier.fillMaxSize(),
