@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.Bundle
 import android.telephony.PhoneNumberUtils
 import android.telephony.SmsManager
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -340,7 +339,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun Capture(contact: Contact) {
-        var capturing by remember { mutableStateOf(false)}
+        var capturing by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
         Box(
@@ -350,16 +349,25 @@ class MainActivity : ComponentActivity() {
         ) {
             Column(modifier = Modifier.align(Alignment.BottomCenter)) {
                 if (capturing) {
-                    FloatingActionButton(modifier = Modifier.align(Alignment.CenterHorizontally).border(1.dp, Color.White, shape = RoundedCornerShape(50)), onClick = {}) {
+                    FloatingActionButton(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .border(1.dp, Color.White, shape = RoundedCornerShape(50)),
+                        onClick = {}) {
                         CircularProgressIndicator()
                     }
                 } else {
                     FloatingActionButton(
-                        modifier = Modifier.align(Alignment.CenterHorizontally).border(1.dp, Color.White, shape = RoundedCornerShape(50)),
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .border(1.dp, Color.White, shape = RoundedCornerShape(50)),
                         onClick = {
                             capturing = true
                             scope.launch {
-                                snackbarHostState.showSnackbar(getString(R.string.sending), duration = SnackbarDuration.Indefinite)
+                                snackbarHostState.showSnackbar(
+                                    getString(R.string.sending),
+                                    duration = SnackbarDuration.Indefinite
+                                )
                             }
                             lifecycleScope.launch(Dispatchers.IO) {
                                 try {
@@ -367,7 +375,13 @@ class MainActivity : ComponentActivity() {
                                     sendPhoto(contact, file)
                                     scope.launch {
                                         snackbarHostState.currentSnackbarData?.dismiss()
-                                        snackbarHostState.showSnackbar(getString(R.string.sent_to, contact.name, contact.phoneNumber), duration = SnackbarDuration.Short)
+                                        snackbarHostState.showSnackbar(
+                                            getString(
+                                                R.string.sent_to,
+                                                contact.name,
+                                                contact.phoneNumber
+                                            ), duration = SnackbarDuration.Short
+                                        )
                                     }
                                 } catch (e: Exception) {
                                     Timber.e(e)
@@ -386,7 +400,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // https://developer.android.com/codelabs/camerax-getting-started#4
-    private suspend fun takePhoto() : File {
+    private suspend fun takePhoto(): File {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture!!
 
