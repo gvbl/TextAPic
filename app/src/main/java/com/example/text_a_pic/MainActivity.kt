@@ -3,15 +3,10 @@
 package com.example.text_a_pic
 
 import android.Manifest.permission.*
-import android.content.ContentValues
-import android.content.Context
+import android.content.*
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
-import android.telephony.PhoneNumberUtils
-import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -37,12 +32,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
-import com.bumptech.glide.Glide
 import com.example.text_a_pic.ui.theme.TextAPicTheme
-import com.google.android.mms.ContentType
-import com.google.android.mms.MMSPart
-import com.google.android.mms.pdu_alt.PduPersister.DUMMY_THREAD_ID
 import com.klinker.android.send_message.Transaction
+import timber.log.Timber
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -55,6 +48,7 @@ class MainActivity : ComponentActivity() {
         private val permissions = mutableListOf(
             READ_CONTACTS,
             CAMERA,
+            READ_SMS,
             SEND_SMS,
         ).apply {
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
@@ -80,6 +74,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Timber.d("send MMS result code: $resultCode")
+        }
+    }
+
     private var imageCapture: ImageCapture? = null
 
     private lateinit var cameraExecutor: ExecutorService
@@ -100,11 +100,19 @@ class MainActivity : ComponentActivity() {
         }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
+
+        ContextCompat.registerReceiver(
+            this,
+            receiver,
+            IntentFilter(Transaction.MMS_SENT),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
+        unregisterReceiver(receiver)
     }
 
     @Composable
@@ -160,6 +168,13 @@ class MainActivity : ComponentActivity() {
                     Icon(imageVector = Icons.Default.Sms, contentDescription = null)
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
+                        text = getString(R.string.read_sms)
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Sms, contentDescription = null)
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
                         text = getString(R.string.send_sms)
                     )
                 }
@@ -180,7 +195,7 @@ class MainActivity : ComponentActivity() {
                 MainAppBar(viewModel, it)
                 Camera()
             }
-            Capture(it)
+            Capture(viewModel, it)
         } ?: AddContact()
     }
 
@@ -305,7 +320,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun Capture(contact: Contact) {
+    fun Capture(viewModel: MainViewModel, contact: Contact) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -315,17 +330,13 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onClick = {
                     takePhoto(onSuccess = {
-                        val smsManager = getSystemService(SmsManager::class.java)
-                        val maxWidth = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_WIDTH)
-                        val maxHeight = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_HEIGHT)
-                        val bytes = getScaledImage(this@MainActivity, it, maxWidth, maxHeight)
-                        val parts = listOf(MMSPart("image", ContentType.IMAGE_JPEG, bytes))
-                        val transaction = Transaction(this@MainActivity)
-                        val addresses = listOf(PhoneNumberUtils.stripSeparators(contact.phoneNumber))
-                        transaction.sendNewMessage(smsManager.subscriptionId, DUMMY_THREAD_ID, addresses, parts, null, null)
-                        Toast.makeText(this@MainActivity, "Photo send to ${contact.phoneNumber}", Toast.LENGTH_SHORT).show()
+                        viewModel.sendPhoto(this@MainActivity, contact, it)
                     }, onError = {
-                        Toast.makeText(this@MainActivity, "Error: ${it.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Error: ${it.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     })
                 },
             ) {
@@ -335,28 +346,21 @@ class MainActivity : ComponentActivity() {
     }
 
     // https://developer.android.com/codelabs/camerax-getting-started#4
-    private fun takePhoto(onSuccess: ((Uri) -> Unit)? = null, onError: ((Exception) -> Unit)? = null) {
+    private fun takePhoto(
+        onSuccess: ((File) -> Unit)? = null,
+        onError: ((Exception) -> Unit)? = null
+    ) {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture!!
 
-        // Create time stamped name and MediaStore entry.
+        // Create time stamped name
         val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
             .format(System.currentTimeMillis())
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
-            }
-        }
+        val file = File(externalMediaDirs.first(), name)
 
         // Create output options object which contains file + metadata
         val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(
-                contentResolver,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                contentValues
-            )
+            .Builder(file)
             .build()
 
         // Set up image capture listener, which is triggered after photo has
@@ -370,22 +374,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    output.savedUri?.let {
-                        onSuccess?.invoke(it)
-                    } ?: onError?.invoke(Exception("Null photo uri"))
+                    onSuccess?.invoke(file)
 
                 }
             }
         )
     }
-
-    private fun getScaledImage(context: Context, uri: Uri, maxWidth: Int, maxHeight: Int, quality: Int = 90): ByteArray =
-        Glide
-            .with(context)
-            .`as`(ByteArray::class.java)
-            .load(uri)
-            .centerInside()
-            .encodeQuality(quality)
-            .submit(maxWidth, maxHeight)
-            .get()
 }
