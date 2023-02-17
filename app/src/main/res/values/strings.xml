@@ -5,11 +5,11 @@
     <string name="edit_contacts">Edit contacts</string>
     <string name="delete">Delete</string>
     <string name="enable_camera">Enable camera</string>
-    <string name="permissions_header">Text-A-Pic needs the following permissions:</string>
+    <string name="permissions_header_1">The following permissions are needed</string>
+    <string name="permissions_header_2">to send pictures by text message.</string>
     <string name="read_contacts">Read contacts</string>
-    <string name="camera">Camera</string>
+    <string name="take_photos">Take photos</string>
     <string name="write_files">Write files</string>
     <string name="grant_permissions">Grant permissions</string>
-    <string name="send_sms">Send SMS</string>
-    <string name="read_sms">Read SMS</string>
+    <string name="send_and_view_sms">Send and view SMS</string>
 </resources>

@@ -138,10 +138,12 @@ class MainActivity : ComponentActivity() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(text = getString(R.string.permissions_header))
+            Text(text = getString(R.string.app_name), style = MaterialTheme.typography.h4)
+            Text(text = getString(R.string.permissions_header_1))
+            Text(text = getString(R.string.permissions_header_2))
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Default.Person, contentDescription = null)
@@ -154,7 +156,7 @@ class MainActivity : ComponentActivity() {
                     Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
-                        text = getString(R.string.camera)
+                        text = getString(R.string.take_photos)
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -168,14 +170,7 @@ class MainActivity : ComponentActivity() {
                     Icon(imageVector = Icons.Default.Sms, contentDescription = null)
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
-                        text = getString(R.string.read_sms)
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Sms, contentDescription = null)
-                    Text(
-                        modifier = Modifier.padding(start = 8.dp),
-                        text = getString(R.string.send_sms)
+                        text = getString(R.string.send_and_view_sms)
                     )
                 }
             }
@@ -375,7 +370,6 @@ class MainActivity : ComponentActivity() {
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     onSuccess?.invoke(file)
-
                 }
             }
         )
