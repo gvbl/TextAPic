@@ -14,4 +14,6 @@
     <string name="send_and_view_sms">Send and view SMS</string>
     <string name="sending">Sending…</string>
     <string name="sent_to">Sent to %1$s at %2$s</string>
+    <string name="sms_send_error">Send send error, code: %1$s</string>
+    <string name="something_went_wrong">Something went wrong</string>
 </resources>

@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.*
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.telephony.PhoneNumberUtils
@@ -52,7 +53,16 @@ import com.klinker.android.send_message.Utils
 import id.zelory.compressor.Compressor
 import id.zelory.compressor.constraint.size
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.sendBlocking
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import timber.log.Timber
 import java.io.*
 import java.text.SimpleDateFormat
@@ -63,6 +73,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.abs
+import kotlin.time.Duration.Companion.milliseconds
 
 // Todo: Account for "allow once" permissions, kicking back to permissions screen if any not granted
 class MainActivity : ComponentActivity() {
@@ -97,9 +108,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            Timber.v("Send MMS result code: $resultCode")
+    private val sendMessageResult = callbackFlow<Int> {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent) {
+                Timber.v("Send MMS result code: $resultCode")
+                trySendBlocking(resultCode)
+            }
+        }
+        ContextCompat.registerReceiver(
+            this@MainActivity,
+            receiver,
+            IntentFilter(Transaction.MMS_SENT),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
+        awaitClose {
+            unregisterReceiver(receiver)
         }
     }
 
@@ -116,19 +140,6 @@ class MainActivity : ComponentActivity() {
         }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
-
-        ContextCompat.registerReceiver(
-            this,
-            receiver,
-            IntentFilter(Transaction.MMS_SENT),
-            ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraExecutor.shutdown()
-        unregisterReceiver(receiver)
     }
 
     @Composable
@@ -373,19 +384,41 @@ class MainActivity : ComponentActivity() {
                                 try {
                                     val file = takePhoto()
                                     sendPhoto(contact, file)
-                                    scope.launch {
-                                        snackbarHostState.currentSnackbarData?.dismiss()
-                                        snackbarHostState.showSnackbar(
-                                            getString(
-                                                R.string.sent_to,
-                                                contact.name,
-                                                contact.phoneNumber
-                                            ), duration = SnackbarDuration.Short
-                                        )
+                                    withTimeout(10000.milliseconds) {
+                                        val resultCode = sendMessageResult.first()
+                                        scope.launch {
+                                            when (resultCode) {
+                                                -1 -> {
+                                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                                    snackbarHostState.showSnackbar(
+                                                        getString(
+                                                            R.string.sent_to,
+                                                            contact.name,
+                                                            contact.phoneNumber
+                                                        ), duration = SnackbarDuration.Short
+                                                    )
+                                                    capturing = false
+                                                }
+                                                0 -> { }
+                                                else -> {
+                                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                                    snackbarHostState.showSnackbar(
+                                                        getString(
+                                                            R.string.sms_send_error,
+                                                            resultCode.toString(),
+                                                        ), duration = SnackbarDuration.Short
+                                                    )
+                                                    capturing = false
+                                                }
+                                            }
+                                        }
                                     }
                                 } catch (e: Exception) {
                                     Timber.e(e)
-                                } finally {
+                                    scope.launch {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        snackbarHostState.showSnackbar(getString(R.string.something_went_wrong), duration = SnackbarDuration.Short)
+                                    }
                                     capturing = false
                                 }
                             }
