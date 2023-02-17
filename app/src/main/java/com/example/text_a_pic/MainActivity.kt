@@ -146,17 +146,17 @@ class MainActivity : ComponentActivity() {
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Person, contentDescription = null)
-                    Text(
-                        modifier = Modifier.padding(start = 8.dp),
-                        text = getString(R.string.read_contacts)
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
                         text = getString(R.string.take_photos)
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Person, contentDescription = null)
+                    Text(
+                        modifier = Modifier.padding(start = 8.dp),
+                        text = getString(R.string.read_contacts)
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
