@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.content.*
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.telephony.PhoneNumberUtils
@@ -436,7 +435,7 @@ class MainActivity : ComponentActivity() {
         // Create time stamped name
         val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
             .format(System.currentTimeMillis())
-        val file = File(externalMediaDirs.first(), name)
+        val file = File(externalMediaDirs.first(), "$name.jpg")
         Timber.v("Capturing photo to file: ${file.absolutePath}")
 
         // Create output options object which contains file + metadata
