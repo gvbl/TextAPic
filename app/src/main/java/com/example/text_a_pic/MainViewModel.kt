@@ -40,7 +40,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val contacts = repository.selectAll()
     val selectedContact = repository.recipientId.map { id ->
-        id?.let { repository.findById(it) }
+        id?.let { Resource.success(repository.findById(it)) } ?: Resource.success(null)
     }.flowOn(Dispatchers.IO).asLiveData()
 
     fun resolveContact(uri: Uri) {

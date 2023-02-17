@@ -184,14 +184,16 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun Main(viewModel: MainViewModel) {
-        val contact by viewModel.selectedContact.observeAsState(null)
-        contact?.let {
-            Column {
-                MainAppBar(viewModel, it)
-                Camera()
-            }
-            Capture(viewModel, it)
-        } ?: AddContact()
+        val contactResource by viewModel.selectedContact.observeAsState(Resource.loading())
+        if (contactResource.status == Status.SUCCESS) {
+            contactResource.data?.let {
+                Column {
+                    MainAppBar(viewModel, it)
+                    Camera()
+                }
+                Capture(viewModel, it)
+            } ?: AddContact()
+        }
     }
 
     @Composable
