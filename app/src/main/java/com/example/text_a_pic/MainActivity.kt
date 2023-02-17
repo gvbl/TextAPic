@@ -3,10 +3,14 @@
 package com.example.text_a_pic
 
 import android.Manifest.permission.*
+import android.app.PendingIntent
 import android.content.*
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.telephony.PhoneNumberUtils
+import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,14 +36,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.lifecycleScope
+import com.android.mms.dom.smil.parser.SmilXmlSerializer
 import com.example.text_a_pic.ui.theme.TextAPicTheme
+import com.google.android.mms.ContentType
+import com.google.android.mms.InvalidHeaderValueException
+import com.google.android.mms.MMSPart
+import com.google.android.mms.pdu_alt.*
+import com.google.android.mms.smil.SmilHelper
+import com.klinker.android.send_message.BroadcastUtils
 import com.klinker.android.send_message.Transaction
+import com.klinker.android.send_message.Utils
+import id.zelory.compressor.Compressor
+import id.zelory.compressor.constraint.size
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.io.File
+import java.io.*
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.abs
 
 // Todo: Account for "allow once" permissions, kicking back to permissions screen if any not granted
 class MainActivity : ComponentActivity() {
@@ -191,7 +209,7 @@ class MainActivity : ComponentActivity() {
                     MainAppBar(viewModel, it)
                     Camera()
                 }
-                Capture(viewModel, it)
+                Capture(it)
             } ?: AddContact()
         }
     }
@@ -317,7 +335,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun Capture(viewModel: MainViewModel, contact: Contact) {
+    fun Capture(contact: Contact) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -327,7 +345,9 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.align(Alignment.BottomCenter),
                 onClick = {
                     takePhoto(onSuccess = {
-                        viewModel.sendPhoto(this@MainActivity, contact, it)
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            sendPhoto(contact, it)
+                        }
                     }, onError = {
                         Toast.makeText(
                             this@MainActivity,
@@ -376,5 +396,107 @@ class MainActivity : ComponentActivity() {
                 }
             }
         )
+    }
+
+    private suspend fun sendPhoto(contact: Contact, file: File) {
+        val smsManager = getSystemService(SmsManager::class.java)
+        val maxSize = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE)
+        Timber.v("Max message size: $maxSize")
+        val compressed = Compressor.compress(this@MainActivity, file) {
+            size(maxSize - 1024L) // Leave some room for headers
+        }
+        val bytes =
+            BufferedInputStream(FileInputStream(compressed)).use { it.buffered().readBytes() }
+        Timber.v("Compressed image size: ${bytes.size}")
+        val parts = listOf(MMSPart("image", ContentType.IMAGE_JPEG, bytes))
+        val addresses = listOf(PhoneNumberUtils.stripSeparators(contact.phoneNumber))
+        val fileName = "send.${abs(Random().nextLong())}.dat"
+        val sendFile = File(cacheDir, fileName)
+        val sendReq = buildPdu(addresses, null, parts)
+        val sentIntent = Intent(Transaction.MMS_SENT)
+        BroadcastUtils.addClassName(this@MainActivity, sentIntent, Transaction.MMS_SENT)
+        sentIntent.putExtra(Transaction.EXTRA_FILE_PATH, sendFile.path)
+        val sentPI = PendingIntent.getBroadcast(
+            this@MainActivity,
+            0,
+            sentIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        FileOutputStream(sendFile).use { writer ->
+            writer.write(PduComposer(this@MainActivity, sendReq).make())
+            val pduUri = Uri.Builder()
+                .authority("$packageName.MmsFileProvider")
+                .path(fileName)
+                .scheme(ContentResolver.SCHEME_CONTENT)
+                .build()
+            smsManager.sendMultimediaMessage(this@MainActivity, pduUri, null, null, sentPI)
+        }
+    }
+
+    private fun buildPdu(
+        recipients: List<String>,
+        subject: String?,
+        parts: List<MMSPart>
+    ): SendReq {
+        val req = SendReq()
+
+        Utils.getMyPhoneNumber(this)?.takeIf(String::isNotEmpty)?.let(::EncodedStringValue)
+            ?.let(req::setFrom) // From
+        recipients.map(::EncodedStringValue).forEach(req::addTo) // To
+        subject?.takeIf(String::isNotEmpty)?.let(::EncodedStringValue)
+            ?.let(req::setSubject) // Subject
+
+        req.date = System.currentTimeMillis() / 1000
+        req.body = PduBody()
+
+        // Parts
+        parts.map(this::partToPduPart).forEach { req.body.addPart(it) }
+
+        // SMIL document for compatibility
+        req.body.addPart(0, PduPart().apply {
+            contentId = "smil".toByteArray()
+            contentLocation = "smil.xml".toByteArray()
+            contentType = ContentType.APP_SMIL.toByteArray()
+            data = ByteArrayOutputStream()
+                .apply {
+                    SmilXmlSerializer.serialize(
+                        SmilHelper.createSmilDocument(req.body),
+                        this
+                    )
+                }
+                .toByteArray()
+        })
+
+        req.messageSize = parts.mapNotNull { it.data?.size }.sum().toLong()
+        req.messageClass = PduHeaders.MESSAGE_CLASS_PERSONAL_STR.toByteArray()
+        req.expiry = Transaction.DEFAULT_EXPIRY_TIME
+
+        try {
+            req.priority = Transaction.DEFAULT_PRIORITY
+            req.deliveryReport = PduHeaders.VALUE_NO
+            req.readReport = PduHeaders.VALUE_NO
+        } catch (e: InvalidHeaderValueException) {
+            Timber.w(e)
+        }
+
+        return req
+    }
+
+    private fun partToPduPart(part: MMSPart): PduPart = PduPart().apply {
+        val filename = part.name
+
+        // Set Charset if it's a text media.
+        if (part.mimeType.startsWith("text")) {
+            charset = CharacterSets.UTF_8
+        }
+
+        // Set Content-Type.
+        contentType = part.mimeType.toByteArray()
+
+        // Set Content-Location.
+        contentLocation = filename.toByteArray()
+        val index = filename.lastIndexOf(".")
+        contentId = (if (index == -1) filename else filename.substring(0, index)).toByteArray()
+        data = part.data
     }
 }
