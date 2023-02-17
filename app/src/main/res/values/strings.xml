@@ -12,4 +12,6 @@
     <string name="write_files">Write files</string>
     <string name="grant_permissions">Grant permissions</string>
     <string name="send_and_view_sms">Send and view SMS</string>
+    <string name="sending">Sending…</string>
+    <string name="sent_to">Sent to %1$s at %2$s</string>
 </resources>

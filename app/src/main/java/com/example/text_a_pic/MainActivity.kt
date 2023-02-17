@@ -22,7 +22,9 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -30,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,6 +60,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 import kotlin.math.abs
 
 // Todo: Account for "allow once" permissions, kicking back to permissions screen if any not granted
@@ -334,37 +340,53 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun Capture(contact: Contact) {
+        var capturing by remember { mutableStateOf(false)}
+        val scope = rememberCoroutineScope()
+        val snackbarHostState = remember { SnackbarHostState() }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = 16.dp)
         ) {
-            FloatingActionButton(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                onClick = {
-                    takePhoto(onSuccess = {
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            sendPhoto(contact, it)
-                        }
-                    }, onError = {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Error: ${it.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    })
-                },
-            ) {
-                Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
+            Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+                if (capturing) {
+                    FloatingActionButton(modifier = Modifier.align(Alignment.CenterHorizontally).border(1.dp, Color.White, shape = RoundedCornerShape(50)), onClick = {}) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    FloatingActionButton(
+                        modifier = Modifier.align(Alignment.CenterHorizontally).border(1.dp, Color.White, shape = RoundedCornerShape(50)),
+                        onClick = {
+                            capturing = true
+                            scope.launch {
+                                snackbarHostState.showSnackbar(getString(R.string.sending), duration = SnackbarDuration.Indefinite)
+                            }
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                try {
+                                    val file = takePhoto()
+                                    sendPhoto(contact, file)
+                                    scope.launch {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        snackbarHostState.showSnackbar(getString(R.string.sent_to, contact.name, contact.phoneNumber), duration = SnackbarDuration.Short)
+                                    }
+                                } catch (e: Exception) {
+                                    Timber.e(e)
+                                } finally {
+                                    capturing = false
+                                }
+                            }
+                        },
+                    ) {
+                        Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
+                    }
+                }
+                SnackbarHost(hostState = snackbarHostState)
             }
         }
     }
 
     // https://developer.android.com/codelabs/camerax-getting-started#4
-    private fun takePhoto(
-        onSuccess: ((File) -> Unit)? = null,
-        onError: ((Exception) -> Unit)? = null
-    ) {
+    private suspend fun takePhoto() : File {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture!!
 
@@ -379,21 +401,23 @@ class MainActivity : ComponentActivity() {
             .Builder(file)
             .build()
 
-        // Set up image capture listener, which is triggered after photo has
-        // been taken
-        imageCapture.takePicture(
-            outputOptions,
-            ContextCompat.getMainExecutor(this),
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onError(exc: ImageCaptureException) {
-                    onError?.invoke(exc)
-                }
+        return suspendCoroutine { continuation ->
+            // Set up image capture listener, which is triggered after photo has
+            // been taken
+            imageCapture.takePicture(
+                outputOptions,
+                ContextCompat.getMainExecutor(this),
+                object : ImageCapture.OnImageSavedCallback {
+                    override fun onError(exception: ImageCaptureException) {
+                        continuation.resumeWithException(exception)
+                    }
 
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    onSuccess?.invoke(file)
+                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                        continuation.resume(file)
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     private suspend fun sendPhoto(contact: Contact, file: File) {
