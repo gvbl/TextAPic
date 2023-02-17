@@ -24,6 +24,7 @@ import com.klinker.android.send_message.Transaction.Companion.DEFAULT_PRIORITY
 import com.klinker.android.send_message.Utils
 import id.zelory.compressor.Compressor
 import id.zelory.compressor.constraint.quality
+import id.zelory.compressor.constraint.size
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -59,11 +60,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun sendPhoto(context: Context, contact: Contact, file: File) {
         viewModelScope.launch(Dispatchers.IO) {
             val smsManager = context.getSystemService(SmsManager::class.java)
+            val maxSize = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE)
+            Timber.v("Max message size: $maxSize")
             val compressed = Compressor.compress(context, file) {
-                quality(50)
+                size(maxSize - 1024L) // Leave some room for headers
             }
             val bytes =
                 BufferedInputStream(FileInputStream(compressed)).use { it.buffered().readBytes() }
+            Timber.v("Compressed image size: ${bytes.size}")
             val parts = listOf(MMSPart("image", ContentType.IMAGE_JPEG, bytes))
             val addresses = listOf(PhoneNumberUtils.stripSeparators(contact.phoneNumber))
             val fileName = "send.${abs(Random().nextLong())}.dat"

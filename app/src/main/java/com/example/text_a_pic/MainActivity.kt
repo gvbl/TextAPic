@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            Timber.d("send MMS result code: $resultCode")
+            Timber.v("Send MMS result code: $resultCode")
         }
     }
 
@@ -352,6 +352,7 @@ class MainActivity : ComponentActivity() {
         val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
             .format(System.currentTimeMillis())
         val file = File(externalMediaDirs.first(), name)
+        Timber.v("Capturing photo to file: ${file.absolutePath}")
 
         // Create output options object which contains file + metadata
         val outputOptions = ImageCapture.OutputFileOptions
