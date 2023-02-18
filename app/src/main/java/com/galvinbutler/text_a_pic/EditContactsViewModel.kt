@@ -1,4 +1,4 @@
-package com.example.text_a_pic
+package com.galvinbutler.text_a_pic
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel

@@ -1,4 +1,4 @@
-package com.example.text_a_pic
+package com.galvinbutler.text_a_pic
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.Text

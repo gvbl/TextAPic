@@ -1,4 +1,4 @@
-package com.example.text_a_pic.ui.theme
+package com.galvinbutler.text_a_pic.ui.theme
 
 import androidx.compose.material.Typography
 import androidx.compose.ui.text.TextStyle

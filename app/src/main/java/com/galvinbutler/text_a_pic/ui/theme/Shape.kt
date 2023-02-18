@@ -1,4 +1,4 @@
-package com.example.text_a_pic.ui.theme
+package com.galvinbutler.text_a_pic.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Shapes

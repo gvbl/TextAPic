@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterialApi::class)
 
-package com.example.text_a_pic
+package com.galvinbutler.text_a_pic
 
 import android.Manifest.permission.*
 import android.app.PendingIntent
@@ -41,7 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import com.android.mms.dom.smil.parser.SmilXmlSerializer
-import com.example.text_a_pic.ui.theme.TextAPicTheme
+import com.galvinbutler.text_a_pic.ui.theme.TextAPicTheme
 import com.google.android.mms.ContentType
 import com.google.android.mms.InvalidHeaderValueException
 import com.google.android.mms.MMSPart

@@ -1,10 +1,13 @@
-package com.example.text_a_pic
+package com.galvinbutler.text_a_pic
 
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
+import com.galvinbutler.text_a_pic.Contact
+import com.galvinbutler.text_a_pic.ContactRepository
+import com.galvinbutler.text_a_pic.Resource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map

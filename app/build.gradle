@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.text_a_pic'
+    namespace 'com.galvinbutler.text_a_pic'
     compileSdk 33
 
     defaultConfig {
-        applicationId "com.example.text_a_pic"
+        applicationId "com.galvinbutler.text_a_pic"
         minSdk 24
         targetSdk 33
         versionCode 1

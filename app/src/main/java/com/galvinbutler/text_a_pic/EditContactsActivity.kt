@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterialApi::class)
 
-package com.example.text_a_pic
+package com.galvinbutler.text_a_pic
 
 import android.content.Context
 import android.content.Intent
@@ -21,7 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.text_a_pic.ui.theme.TextAPicTheme
+import com.galvinbutler.text_a_pic.ui.theme.TextAPicTheme
 
 class EditContactsActivity : ComponentActivity() {
 
