@@ -51,6 +51,7 @@ import com.klinker.android.send_message.BroadcastUtils
 import com.klinker.android.send_message.Transaction
 import com.klinker.android.send_message.Utils
 import id.zelory.compressor.Compressor
+import id.zelory.compressor.constraint.resolution
 import id.zelory.compressor.constraint.size
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -482,13 +483,16 @@ class MainActivity : ComponentActivity() {
     private suspend fun sendPhoto(contact: Contact, file: File) {
         val smsManager = getSystemService(SmsManager::class.java)
         val maxSize = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_MESSAGE_SIZE)
-        Timber.v("Max message size: $maxSize")
+        val maxWidth = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_WIDTH)
+        val maxHeight = smsManager.carrierConfigValues.getInt(SmsManager.MMS_CONFIG_MAX_IMAGE_HEIGHT)
         val compressed = Compressor.compress(this@MainActivity, file) {
-            size(maxSize - 1024L) // Leave some room for headers
+            // Leave some room for headers
+            size(maxSize - 1024L)
+            // this constraint halves the width and height if the image is too large
+            resolution(maxWidth, maxHeight)
         }
         val bytes =
             BufferedInputStream(FileInputStream(compressed)).use { it.buffered().readBytes() }
-        Timber.v("Compressed image size: ${bytes.size}")
         val parts = listOf(MMSPart("image", ContentType.IMAGE_JPEG, bytes))
         val addresses = listOf(PhoneNumberUtils.stripSeparators(contact.phoneNumber))
         val fileName = "send.${abs(Random().nextLong())}.dat"
