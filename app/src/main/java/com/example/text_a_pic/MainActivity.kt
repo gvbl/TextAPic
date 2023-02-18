@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.telephony.PhoneNumberUtils
 import android.telephony.SmsManager
 import androidx.activity.ComponentActivity
@@ -432,16 +433,24 @@ class MainActivity : ComponentActivity() {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture!!
 
-        // Create time stamped name
+        // Create time stamped name and MediaStore entry.
         val name = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
             .format(System.currentTimeMillis())
-        val file = File(externalMediaDirs.first(), "$name.jpg")
-        Timber.v("Capturing photo to file: ${file.absolutePath}")
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Text-A-Pic")
+            }
+        }
 
         // Create output options object which contains file + metadata
         val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(file)
+            .Builder(contentResolver,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues)
             .build()
+
 
         return suspendCoroutine { continuation ->
             // Set up image capture listener, which is triggered after photo has
@@ -455,7 +464,15 @@ class MainActivity : ComponentActivity() {
                     }
 
                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                        continuation.resume(file)
+                        val projection = arrayOf(MediaStore.Images.Media.DATA)
+                        val cursor = contentResolver.query(output.savedUri!!, projection, null, null, null)
+                        if (cursor != null && cursor.count > 0 && cursor.moveToFirst()) {
+                            val index = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                            val path = cursor.getString(index)
+                            continuation.resume(File(path))
+                        } else {
+                            throw Exception("Could not get file path from photo Uri")
+                        }
                     }
                 }
             )
