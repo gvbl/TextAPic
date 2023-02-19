@@ -49,7 +49,6 @@ import com.google.android.mms.pdu_alt.*
 import com.google.android.mms.smil.SmilHelper
 import com.klinker.android.send_message.BroadcastUtils
 import com.klinker.android.send_message.Transaction
-import com.klinker.android.send_message.Utils
 import id.zelory.compressor.Compressor
 import id.zelory.compressor.constraint.resolution
 import id.zelory.compressor.constraint.size
@@ -79,7 +78,6 @@ class MainActivity : ComponentActivity() {
         private val permissions = mutableListOf(
             READ_CONTACTS,
             CAMERA,
-            READ_SMS,
             SEND_SMS,
         ).apply {
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
@@ -199,7 +197,7 @@ class MainActivity : ComponentActivity() {
                     Icon(imageVector = Icons.Default.Sms, contentDescription = null)
                     Text(
                         modifier = Modifier.padding(start = 8.dp),
-                        text = getString(R.string.send_and_view_sms)
+                        text = getString(R.string.send_sms)
                     )
                 }
             }
@@ -525,8 +523,8 @@ class MainActivity : ComponentActivity() {
     ): SendReq {
         val req = SendReq()
 
-        Utils.getMyPhoneNumber(this)?.takeIf(String::isNotEmpty)?.let(::EncodedStringValue)
-            ?.let(req::setFrom) // From
+//        Utils.getMyPhoneNumber(this)?.takeIf(String::isNotEmpty)?.let(::EncodedStringValue)
+//            ?.let(req::setFrom) // From
         recipients.map(::EncodedStringValue).forEach(req::addTo) // To
         subject?.takeIf(String::isNotEmpty)?.let(::EncodedStringValue)
             ?.let(req::setSubject) // Subject
